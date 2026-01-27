@@ -1,0 +1,16 @@
+# Environnements virtuels Python
+venv/
+.env/
+.venv/
+
+# Fichiers Python
+__pycache__/
+*.pyc
+*.pyo
+
+# IDE / éditeurs
+.vscode/
+.idea/
+
+# OS
+.DS_Store

@@ -2,6 +2,33 @@ import socket, struct, threading
 from server.screen_capture import get_frame
 from server.block_diff import diff_blocks
 from config.settings import SERVER_IP, SERVER_PORT
+from server.input_apply import InputApply
+
+
+def input_loop(client_socket):
+    while True:
+        size_data = client_socket.recv(4)
+        if not size_data:
+            break
+
+        size = struct.unpack(">I", size_data)[0]
+        data = client_socket.recv(size)
+        input_apply.handle(data)
+
+
+def screen_loop(client_socket):
+    while True:
+        frame = get_frame()
+        if frame is None:
+            continue
+
+        data = encode_frame(frame)
+        if data is None:
+            continue
+
+        client_socket.sendall(struct.pack(">I", len(data)))
+        client_socket.sendall(data)
+
 
 clients = {}
 lock = threading.Lock()

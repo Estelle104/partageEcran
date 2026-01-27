@@ -1,5 +1,6 @@
-SERVER_IP = "0.0.0.0"   # écoute toutes les interfaces
+SERVER_IP = "0.0.0.0"
 SERVER_PORT = 5000
 
-WIDTH = 960
-HEIGHT = 540
+WIDTH = 800
+HEIGHT = 450
+JPEG_QUALITY = 60

@@ -14,3 +14,4 @@ def encode_frame(frame):
 
     # IMPORTANT : convertir en bytes
     return encoded.tobytes()
+    

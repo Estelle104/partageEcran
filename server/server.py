@@ -14,7 +14,7 @@ def start_server():
     server_socket.bind((SERVER_IP, SERVER_PORT))
 
     # 3. Listen UNE SEULE FOIS
-    server_socket.listen(1)
+    server_socket.listen(2)
     print(f"[SERVER] En attente de connexion sur {SERVER_IP}:{SERVER_PORT}")
 
     # 4. Accept UNE SEULE FOIS

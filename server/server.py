@@ -6,44 +6,34 @@ from server.encoder import encode_frame
 from config.settings import SERVER_IP, SERVER_PORT
 
 def start_server():
-    # 1. Création du socket TCP
+    # 1. Création du socket
     server_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
     server_socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
 
-    # 2. Bind IP + port
+    # 2. Bind UNE SEULE FOIS
     server_socket.bind((SERVER_IP, SERVER_PORT))
 
-    # 3. Mise en écoute
+    # 3. Listen UNE SEULE FOIS
     server_socket.listen(1)
     print(f"[SERVER] En attente de connexion sur {SERVER_IP}:{SERVER_PORT}")
 
-    # 4. Attente du client
+    # 4. Accept UNE SEULE FOIS
     client_socket, addr = server_socket.accept()
     print(f"[SERVER] Client connecté depuis {addr}")
 
     try:
         while True:
-            # Capture écran
             frame = get_frame()
             if frame is None:
                 continue
 
-            # Encodage JPEG
             data = encode_frame(frame)
             if data is None:
                 continue
 
-            # Envoi taille + image
+            # Envoi taille + données
             client_socket.sendall(struct.pack(">I", len(data)))
             client_socket.sendall(data)
-
-            print("Bind sur", SERVER_IP, SERVER_PORT)
-            server_socket.bind((SERVER_IP, SERVER_PORT))
-            print("Listen...")
-            server_socket.listen(1)
-            print("Accept...")
-            client_socket, addr = server_socket.accept()
-            print("Client connecté", addr)
 
     except Exception as e:
         print("[SERVER] Erreur :", e)

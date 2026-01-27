@@ -1,21 +1,16 @@
 import cv2
+from config.settings import JPEG_QUALITY
 
-# frame : image OpenCV (ndarray)
-def encode_frame(frame, quality=50):
-    """
-    Encode une image OpenCV en JPEG compressé.
-    quality : 1 (très compressé) -> 100 (meilleure qualité)
-    """
-    # Paramètres d'encodage JPEG
-    encode_params = [
-        int(cv2.IMWRITE_JPEG_QUALITY),
-        quality
-    ]
-    # encode l'image en memoire, en jpeg avec les parametres donnés
-    success, encoded_image = cv2.imencode(".jpg", frame, encode_params)
+def encode_frame(frame):
+    # Encodage JPEG avec OpenCV
+    success, encoded = cv2.imencode(
+        ".jpg",
+        frame,
+        [int(cv2.IMWRITE_JPEG_QUALITY), JPEG_QUALITY]
+    )
 
     if not success:
         return None
 
-    # Convertit l'image encodée en bytes pour l'envoi réseau
-    return encoded_image.tobytes()
+    # IMPORTANT : convertir en bytes
+    return encoded.tobytes()

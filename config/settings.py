@@ -1,6 +1,8 @@
-SERVER_IP = "192.168.43.80"
+SERVER_IP = "0.0.0.0"   # IMPORTANT pour LAN
 SERVER_PORT = 5000
 
-WIDTH = 1000
-HEIGHT = 600
-JPEG_QUALITY = 70
+WIDTH = 960
+HEIGHT = 540
+
+FPS = 20               # baisse = plus fluide sur réseau lent
+JPEG_QUALITY = 50      # compression forte

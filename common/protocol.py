@@ -1,0 +1,8 @@
+# Types de messages
+MSG_FRAME = 1
+MSG_CONTROL_REQUEST = 2
+MSG_CONTROL_RESPONSE = 3
+
+# Réponses possibles
+CONTROL_ACCEPTED = 1
+CONTROL_REFUSED = 0

@@ -1,9 +1,6 @@
-import socket
-import struct
-import threading
-
+import socket, struct, threading
 from server.screen_capture import get_frame
-from server.encoder import encode_frame
+from server.block_diff import diff_blocks
 from config.settings import SERVER_IP, SERVER_PORT
 from server.input_apply import InputApply
 
@@ -33,30 +30,72 @@ def screen_loop(client_socket):
         client_socket.sendall(data)
 
 
-def start_server():
-    server_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-    server_socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-    server_socket.bind((SERVER_IP, SERVER_PORT))
-    server_socket.listen(1)
+clients = {}
+lock = threading.Lock()
+controller = None   # client autorisé à contrôler
 
-    print(f"[SERVER] En attente de connexion sur {SERVER_IP}:{SERVER_PORT}")
-    client_socket, addr = server_socket.accept()
-    print(f"[SERVER] Client connecté depuis {addr}")
+def handle_client(sock, addr):
+    global controller
+    print(f"[CLIENT] connecté {addr}")
+
+    with lock:
+        clients[sock] = {}
 
     try:
-        t1 = threading.Thread(target=input_loop, args=(client_socket,), daemon=True)
-        t2 = threading.Thread(target=screen_loop, args=(client_socket,), daemon=True)
+        while True:
+            msg = sock.recv(32)
+            if not msg:
+                break
 
-        t1.start()
-        t2.start()
-
-        t1.join()
-        t2.join()
+            if msg == b"REQ_CONTROL":
+                print("[SERVER] Demande de contrôle reçue")
+                decision = input("Autoriser ? (y/n) : ")
+                if decision == "y":
+                    controller = sock
+                    sock.sendall(b"PERMISSION_GRANTED")
+                else:
+                    sock.sendall(b"PERMISSION_DENIED")
 
     finally:
-        client_socket.close()
-        server_socket.close()
+        with lock:
+            clients.pop(sock, None)
+        sock.close()
+        print(f"[CLIENT] déconnecté {addr}")
 
+def broadcast():
+    prev_hashes = {}
+
+    while True:
+        frame = get_frame()
+        if frame is None:
+            continue
+
+        changes = diff_blocks(prev_hashes, frame)
+
+        packet = struct.pack(">H", len(changes))
+        for idx, x, y, data in changes:
+            packet += struct.pack(">HHHI", idx, x, y, len(data))
+            packet += data
+
+        with lock:
+            for c in list(clients.keys()):
+                try:
+                    c.sendall(packet)
+                except:
+                    clients.pop(c, None)
+
+def start_server():
+    s = socket.socket()
+    s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+    s.bind((SERVER_IP, SERVER_PORT))
+    s.listen()
+    print(f"[SERVER] écoute sur {SERVER_IP}:{SERVER_PORT}")
+
+    threading.Thread(target=broadcast, daemon=True).start()
+
+    while True:
+        sock, addr = s.accept()
+        threading.Thread(target=handle_client, args=(sock, addr), daemon=True).start()
 
 if __name__ == "__main__":
     start_server()

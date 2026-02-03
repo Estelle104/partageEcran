@@ -8,9 +8,27 @@ _current_frame = None
 
 
 def connect_to_server(server_ip, server_port, timeout=5):
+    # If config contains 0.0.0.0 (used for server bind), use localhost for client
+    host = server_ip
+    if host == "0.0.0.0":
+        host = "127.0.0.1"
+
     s = socket.socket()
     s.settimeout(timeout)
-    s.connect((server_ip, server_port))
+    try:
+        s.connect((host, server_port))
+    except Exception as e:
+        # Try an explicit localhost fallback if first attempt failed
+        if host != "127.0.0.1":
+            try:
+                s.connect(("127.0.0.1", server_port))
+            except Exception:
+                s.close()
+                raise
+        else:
+            s.close()
+            raise
+
     s.settimeout(None)
     return s
 

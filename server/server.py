@@ -72,7 +72,10 @@ def broadcast():
 
         changes = diff_blocks(prev_hashes, frame)
 
-        packet = struct.pack(">H", len(changes))
+        h, w, _ = frame.shape
+
+        # Packet: [width:>H][height:>H][n_changes:>H][changes...]
+        packet = struct.pack(">HHH", w, h, len(changes))
         for idx, x, y, data in changes:
             packet += struct.pack(">HHHI", idx, x, y, len(data))
             packet += data

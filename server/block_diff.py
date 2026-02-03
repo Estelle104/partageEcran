@@ -1,7 +1,11 @@
 import hashlib
 import cv2
+from config.settings import JPEG_QUALITY
 
-BLOCK_SIZE = 64
+# Taille des blocs : plus grand = moins de blocs à envoyer = plus fluide
+# 64 = bon pour la qualité
+# 128 = optimal pour la fluidité sur réseau lent
+BLOCK_SIZE = 96
 
 def split_blocks(img):
     h, w, _ = img.shape
@@ -22,7 +26,7 @@ def diff_blocks(prev_hashes, img):
     for idx, ((x, y), block) in enumerate(blocks):
         h = hash_block(block)
         if prev_hashes.get(idx) != h:
-            _, encoded = cv2.imencode(".jpg", block, [cv2.IMWRITE_JPEG_QUALITY, 60])
+            _, encoded = cv2.imencode(".jpg", block, [cv2.IMWRITE_JPEG_QUALITY, JPEG_QUALITY])
             changes.append((idx, x, y, encoded.tobytes()))
             prev_hashes[idx] = h
 

@@ -1,6 +1,6 @@
 import socket, struct, threading
 from server.screen_capture import get_frame
-from server.block_diff import diff_blocks
+from server.encoder import encode_frame
 from config.settings import SERVER_IP, SERVER_PORT
 from server.input_apply import InputApply
 
@@ -63,22 +63,20 @@ def handle_client(sock, addr):
         print(f"[CLIENT] déconnecté {addr}")
 
 def broadcast():
-    prev_hashes = {}
-
+    """Broadcast full JPEG frames to all connected clients.
+    This sends a length-prefixed JPEG per frame which favors fluidity.
+    Packet format: [len:>I][jpeg bytes]
+    """
     while True:
         frame = get_frame()
         if frame is None:
             continue
 
-        changes = diff_blocks(prev_hashes, frame)
+        data = encode_frame(frame)
+        if data is None:
+            continue
 
-        h, w, _ = frame.shape
-
-        # Packet: [width:>H][height:>H][n_changes:>H][changes...]
-        packet = struct.pack(">HHH", w, h, len(changes))
-        for idx, x, y, data in changes:
-            packet += struct.pack(">HHHI", idx, x, y, len(data))
-            packet += data
+        packet = struct.pack(">I", len(data)) + data
 
         with lock:
             for c in list(clients.keys()):

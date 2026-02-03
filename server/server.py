@@ -104,6 +104,9 @@ def handle_client(sock, addr):
                                 response = struct.pack(">B", MSG_CONTROL_RESPONSE) + struct.pack(">B", CONTROL_ACCEPTED)
                                 sock.sendall(response)
                                 print(f"[SERVER] {addr} a obtenu le contrôle")
+                                # Lance le thread pour recevoir les entrées du contrôleur
+                                input_thread = threading.Thread(target=handle_input_from_controller, args=(sock,), daemon=True)
+                                input_thread.start()
                             else:
                                 response = struct.pack(">B", MSG_CONTROL_RESPONSE) + struct.pack(">B", CONTROL_REFUSED)
                                 sock.sendall(response)
@@ -114,31 +117,10 @@ def handle_client(sock, addr):
                             sock.sendall(response)
                             print(f"[SERVER] {addr} refusé (contrôle déjà actif)")
                 
-                # Message d'entrée du contrôleur
+                # Message d'entrée du contrôleur - à ignorer ici puisque traité par handle_input_from_controller
                 elif msg_type == MSG_INPUT:
-                    if controller == sock:
-                        # Reçoit la taille du message (4 bytes)
-                        size_data = sock.recv(4)
-                        if not size_data or len(size_data) < 4:
-                            print(f"[SERVER] Erreur: taille manquante pour MSG_INPUT")
-                            break
-                        
-                        size = struct.unpack(">I", size_data)[0]
-                        
-                        # Reçoit les données d'entrée
-                        input_data = b""
-                        while len(input_data) < size:
-                            chunk = sock.recv(size - len(input_data))
-                            if not chunk:
-                                print(f"[SERVER] Connexion fermée lors de la réception de MSG_INPUT")
-                                break
-                            input_data += chunk
-                        
-                        if len(input_data) == size:
-                            try:
-                                input_apply.handle(input_data)
-                            except Exception as e:
-                                print(f"[SERVER] Erreur application entrée: {e}")
+                    # Les entrées sont traitées par handle_input_from_controller, ignore-les ici
+                    pass
                 
                 # Libération du contrôle
                 elif msg_type == MSG_RELEASE_CONTROL:

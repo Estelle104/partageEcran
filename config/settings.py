@@ -1,4 +1,4 @@
-SERVER_IP = "0.0.0.0"         # Écoute sur toutes les interfaces
+SERVER_IP = "172.16.2.152"         # Écoute sur toutes les interfaces
 SERVER_PORT = 5000
 
 # === RÉSOLUTION & QUALITÉ (optimisées pour la fluidité) ===

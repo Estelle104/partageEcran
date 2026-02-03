@@ -77,9 +77,11 @@ def release_control(sock):
     """
     Libère le contrôle et l'envoie au serveur
     """
-    msg = struct.pack(">B", MSG_RELEASE_CONTROL)
+    # Format: [size:>I][msg_type:>B]
+    msg_type = struct.pack(">B", MSG_RELEASE_CONTROL)
+    size = struct.pack(">I", 1)  # Taille = 1 byte (juste le type de message)
     try:
-        sock.sendall(msg)
+        sock.sendall(size + msg_type)
     except:
         pass
     print("[CLIENT] Contrôle libéré")

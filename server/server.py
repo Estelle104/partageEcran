@@ -142,6 +142,11 @@ def handle_client(sock, addr):
                 
                 # Libération du contrôle
                 elif msg_type == MSG_RELEASE_CONTROL:
+                    # Format: [size:>I][msg_type:>B]
+                    # La taille doit être lue et ignorée (elle vaut 1)
+                    size_data = sock.recv(4)
+                    if size_data:
+                        size = struct.unpack(">I", size_data)[0]
                     with lock:
                         if controller == sock:
                             controller = None

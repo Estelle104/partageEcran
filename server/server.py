@@ -3,17 +3,61 @@ from server.screen_capture import get_frame
 from server.encoder import encode_frame
 from config.settings import SERVER_IP, SERVER_PORT
 from server.input_apply import InputApply
+from common.protocol import MSG_CONTROL_REQUEST, MSG_CONTROL_RESPONSE, MSG_INPUT, MSG_RELEASE_CONTROL, CONTROL_ACCEPTED, CONTROL_REFUSED
 
 
-def input_loop(client_socket):
-    while True:
-        size_data = client_socket.recv(4)
-        if not size_data:
+input_apply = InputApply()
+clients = {}
+lock = threading.Lock()
+controller = None   # client autorisé à contrôler
+
+
+def handle_input_from_controller(client_socket):
+    """Reçoit les entrées du client qui contrôle"""
+    global controller
+    while controller == client_socket:
+        try:
+            # Reçoit la taille du message
+            size_data = client_socket.recv(4)
+            if not size_data:
+                break
+            
+            size = struct.unpack(">I", size_data)[0]
+            if size == 0:
+                break
+            
+            # Reçoit le message d'entrée
+            msg_type_data = client_socket.recv(1)
+            if not msg_type_data:
+                break
+            
+            msg_type = struct.unpack(">B", msg_type_data)[0]
+            
+            # Reçoit les données d'entrée
+            input_data = client_socket.recv(size - 1)
+            if not input_data:
+                break
+            
+            # Si c'est une libération de contrôle
+            if msg_type == MSG_RELEASE_CONTROL:
+                with lock:
+                    if controller == client_socket:
+                        controller = None
+                print("[SERVER] Contrôle libéré")
+                break
+            
+            # Si c'est une entrée
+            elif msg_type == MSG_INPUT:
+                input_apply.handle(input_data)
+        
+        except Exception as e:
+            print(f"[SERVER] Erreur lors de la réception d'entrée: {e}")
             break
-
-        size = struct.unpack(">I", size_data)[0]
-        data = client_socket.recv(size)
-        input_apply.handle(data)
+    
+    # Libère le contrôle si le client se déconnecte
+    with lock:
+        if controller == client_socket:
+            controller = None
 
 
 def screen_loop(client_socket):
@@ -30,34 +74,55 @@ def screen_loop(client_socket):
         client_socket.sendall(data)
 
 
-clients = {}
-lock = threading.Lock()
-controller = None   # client autorisé à contrôler
-
 def handle_client(sock, addr):
     global controller
     print(f"[CLIENT] connecté {addr}")
 
     with lock:
-        clients[sock] = {}
+        clients[sock] = {"addr": addr, "controlled": False}
 
     try:
         while True:
-            msg = sock.recv(32)
-            if not msg:
+            # Reçoit le type de message
+            msg_type_data = sock.recv(1)
+            if not msg_type_data:
                 break
-
-            if msg == b"REQ_CONTROL":
-                print("[SERVER] Demande de contrôle reçue")
-                decision = input("Autoriser ? (y/n) : ")
-                if decision == "y":
-                    controller = sock
-                    sock.sendall(b"PERMISSION_GRANTED")
-                else:
-                    sock.sendall(b"PERMISSION_DENIED")
+            
+            msg_type = struct.unpack(">B", msg_type_data)[0]
+            
+            # Demande de contrôle du client
+            if msg_type == MSG_CONTROL_REQUEST:
+                print(f"[SERVER] Demande de contrôle reçue de {addr}")
+                with lock:
+                    if controller is None:
+                        # Demande à l'utilisateur
+                        decision = input(f"Autoriser {addr} à contrôler ? (y/n) : ")
+                        if decision.lower() == "y":
+                            controller = sock
+                            response = struct.pack(">B", MSG_CONTROL_RESPONSE) + struct.pack(">B", CONTROL_ACCEPTED)
+                            sock.sendall(response)
+                            print(f"[SERVER] {addr} a obtenu le contrôle")
+                            
+                            # Démarre la boucle de réception d'entrées pour ce client
+                            threading.Thread(
+                                target=handle_input_from_controller, 
+                                args=(sock,), 
+                                daemon=True
+                            ).start()
+                        else:
+                            response = struct.pack(">B", MSG_CONTROL_RESPONSE) + struct.pack(">B", CONTROL_REFUSED)
+                            sock.sendall(response)
+                            print(f"[SERVER] {addr} a été refusé")
+                    else:
+                        # Un client contrôle déjà
+                        response = struct.pack(">B", MSG_CONTROL_RESPONSE) + struct.pack(">B", CONTROL_REFUSED)
+                        sock.sendall(response)
+                        print(f"[SERVER] {addr} refusé (contrôle déjà actif)")
 
     finally:
         with lock:
+            if controller == sock:
+                controller = None
             clients.pop(sock, None)
         sock.close()
         print(f"[CLIENT] déconnecté {addr}")

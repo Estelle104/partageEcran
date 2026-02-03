@@ -13,10 +13,10 @@ class InputCapture:
         """Envoie les données d'entrée au serveur"""
         try:
             json_data = json.dumps(data).encode()
-            # Format: [size:>I][msg_type:>B][json_data]
-            msg = struct.pack(">B", MSG_INPUT) + json_data
-            size = struct.pack(">I", len(msg))
-            self.network.sendall(size + msg)
+            # Format: [msg_type:>B][size:>I][json_data]
+            msg_type = struct.pack(">B", MSG_INPUT)
+            size = struct.pack(">I", len(json_data))
+            self.network.sendall(msg_type + size + json_data)
         except Exception as e:
             print(f"[CLIENT] Erreur envoi entrée: {e}")
             self.running = False

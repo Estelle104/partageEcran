@@ -83,7 +83,7 @@ def handle_client(sock, addr):
 
     try:
         while True:
-            # Reçoit le type de message
+            # Reçoit le type de message (1 byte)
             msg_type_data = sock.recv(1)
             if not msg_type_data:
                 break
@@ -102,13 +102,6 @@ def handle_client(sock, addr):
                             response = struct.pack(">B", MSG_CONTROL_RESPONSE) + struct.pack(">B", CONTROL_ACCEPTED)
                             sock.sendall(response)
                             print(f"[SERVER] {addr} a obtenu le contrôle")
-                            
-                            # Démarre la boucle de réception d'entrées pour ce client
-                            threading.Thread(
-                                target=handle_input_from_controller, 
-                                args=(sock,), 
-                                daemon=True
-                            ).start()
                         else:
                             response = struct.pack(">B", MSG_CONTROL_RESPONSE) + struct.pack(">B", CONTROL_REFUSED)
                             sock.sendall(response)
@@ -118,6 +111,32 @@ def handle_client(sock, addr):
                         response = struct.pack(">B", MSG_CONTROL_RESPONSE) + struct.pack(">B", CONTROL_REFUSED)
                         sock.sendall(response)
                         print(f"[SERVER] {addr} refusé (contrôle déjà actif)")
+            
+            # Message d'entrée du contrôleur
+            elif msg_type == MSG_INPUT:
+                if controller == sock:
+                    # Reçoit la taille restante du message
+                    size_data = sock.recv(4)
+                    if not size_data:
+                        break
+                    size = struct.unpack(">I", size_data)[0]
+                    
+                    # Reçoit les données d'entrée
+                    input_data = sock.recv(size)
+                    if not input_data:
+                        break
+                    
+                    input_apply.handle(input_data)
+                else:
+                    # Ignore les entrées si ce client n'a pas le contrôle
+                    pass
+            
+            # Libération du contrôle
+            elif msg_type == MSG_RELEASE_CONTROL:
+                with lock:
+                    if controller == sock:
+                        controller = None
+                        print(f"[SERVER] Contrôle libéré par {addr}")
 
     finally:
         with lock:

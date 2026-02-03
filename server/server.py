@@ -10,6 +10,7 @@ input_apply = InputApply()
 clients = {}
 lock = threading.Lock()
 controller = None   # client autorisé à contrôler
+control_response_lock = threading.Lock()  # Pour bloquer le broadcast pendant la réponse de contrôle
 
 
 def handle_input_from_controller(client_socket):
@@ -95,27 +96,28 @@ def handle_client(sock, addr):
                 # Demande de contrôle du client
                 if msg_type == MSG_CONTROL_REQUEST:
                     print(f"[SERVER] Demande de contrôle reçue de {addr}")
-                    with lock:
-                        if controller is None:
-                            # Demande à l'utilisateur
-                            decision = input(f"Autoriser {addr} à contrôler ? (y/n) : ")
-                            if decision.lower() == "y":
-                                controller = sock
-                                response = struct.pack(">B", MSG_CONTROL_RESPONSE) + struct.pack(">B", CONTROL_ACCEPTED)
-                                sock.sendall(response)
-                                print(f"[SERVER] {addr} a obtenu le contrôle")
-                                # Lance le thread pour recevoir les entrées du contrôleur
-                                input_thread = threading.Thread(target=handle_input_from_controller, args=(sock,), daemon=True)
-                                input_thread.start()
+                    with control_response_lock:  # Bloquer les frames pendant la réponse
+                        with lock:
+                            if controller is None:
+                                # Demande à l'utilisateur
+                                decision = input(f"Autoriser {addr} à contrôler ? (y/n) : ")
+                                if decision.lower() == "y":
+                                    controller = sock
+                                    response = struct.pack(">B", MSG_CONTROL_RESPONSE) + struct.pack(">B", CONTROL_ACCEPTED)
+                                    sock.sendall(response)
+                                    print(f"[SERVER] {addr} a obtenu le contrôle")
+                                    # Lance le thread pour recevoir les entrées du contrôleur
+                                    input_thread = threading.Thread(target=handle_input_from_controller, args=(sock,), daemon=True)
+                                    input_thread.start()
+                                else:
+                                    response = struct.pack(">B", MSG_CONTROL_RESPONSE) + struct.pack(">B", CONTROL_REFUSED)
+                                    sock.sendall(response)
+                                    print(f"[SERVER] {addr} a été refusé")
                             else:
+                                # Un client contrôle déjà
                                 response = struct.pack(">B", MSG_CONTROL_RESPONSE) + struct.pack(">B", CONTROL_REFUSED)
                                 sock.sendall(response)
-                                print(f"[SERVER] {addr} a été refusé")
-                        else:
-                            # Un client contrôle déjà
-                            response = struct.pack(">B", MSG_CONTROL_RESPONSE) + struct.pack(">B", CONTROL_REFUSED)
-                            sock.sendall(response)
-                            print(f"[SERVER] {addr} refusé (contrôle déjà actif)")
+                                print(f"[SERVER] {addr} refusé (contrôle déjà actif)")
                 
                 # Message d'entrée du contrôleur - à ignorer ici puisque traité par handle_input_from_controller
                 elif msg_type == MSG_INPUT:
@@ -165,14 +167,15 @@ def broadcast():
 
         packet = struct.pack(">I", len(data)) + data
 
-        with lock:
-            for c in list(clients.keys()):
-                # Ne pas envoyer les frames au client qui contrôle
-                if c != controller:
-                    try:
-                        c.sendall(packet)
-                    except:
-                        clients.pop(c, None)
+        with control_response_lock:  # Éviter d'envoyer pendant une réponse de contrôle
+            with lock:
+                for c in list(clients.keys()):
+                    # Ne pas envoyer les frames au client qui contrôle
+                    if c != controller:
+                        try:
+                            c.sendall(packet)
+                        except:
+                            clients.pop(c, None)
 
 def start_server():
     s = socket.socket()

@@ -8,6 +8,9 @@ keyboard = KeyboardController()
 class InputApply:
 
     def handle(self, data):
+        # Décoder les bytes en string si nécessaire
+        if isinstance(data, bytes):
+            data = data.decode('utf-8')
         event = json.loads(data)
 
         if event["type"] == "mouse_move":

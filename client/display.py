@@ -1,5 +1,5 @@
 import cv2
-from client.network import send_permission_request
+from client.permission import send_permission_request
 
 def show_frame(frame, sock=None):
     cv2.imshow("Partage écran", frame)

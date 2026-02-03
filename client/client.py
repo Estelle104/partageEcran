@@ -2,13 +2,14 @@ import cv2
 from config.settings import SERVER_IP, SERVER_PORT
 from client.network import connect_to_server, receive_frame
 from client.display import show_frame
-from client.control import send_control_request, wait_control_response, start_control_mode
+from client.control import send_control_request, wait_control_response, start_control_mode, stop_control_mode
 
 def main():
     # 1. Connexion au serveur
     sock = connect_to_server(SERVER_IP, SERVER_PORT)
     print("[CLIENT] Connecté au serveur")
     print("[CLIENT] Appuyez sur 'p' pour demander le contrôle")
+    print("[CLIENT] Appuyez sur 'o' pour libérer le contrôle")
     print("[CLIENT] Appuyez sur 'q' pour quitter")
 
     has_control = False
@@ -29,16 +30,20 @@ def main():
             if wait_control_response(sock):
                 print("[CLIENT] Contrôle accordé!")
                 has_control = True
-                try:
-                    start_control_mode(sock)
-                except KeyboardInterrupt:
-                    pass
-                has_control = False
+                start_control_mode(sock)
             else:
                 print("[CLIENT] Contrôle refusé")
+        
+        # Libérer le contrôle
+        if key == ord('o') and has_control:
+            print("[CLIENT] Libération du contrôle...")
+            stop_control_mode(sock)
+            has_control = False
 
         # Quitter proprement
         if key == ord('q'):
+            if has_control:
+                stop_control_mode(sock)
             break
 
     # 3. Fermeture du socket et de OpenCV

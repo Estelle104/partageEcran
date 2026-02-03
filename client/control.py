@@ -1,4 +1,5 @@
 import struct
+import threading
 from common.protocol import MSG_CONTROL_REQUEST, MSG_CONTROL_RESPONSE, MSG_INPUT, MSG_RELEASE_CONTROL, CONTROL_ACCEPTED, CONTROL_REFUSED
 from client.input_capture import InputCapture
 
@@ -34,23 +35,42 @@ def wait_control_response(sock):
         return False
 
 
+# Variable globale pour gérer l'état du contrôle
+_control_active = False
+_input_capture = None
+
+
 def start_control_mode(sock):
     """
     Démarre le mode contrôle: capture et envoie les entrées au serveur
+    Lance la capture d'entrées en thread séparé pour que la vidéo continue
     """
+    global _control_active, _input_capture
+    
     print("[CLIENT] Mode contrôle activé")
     print("[CLIENT] Appuyez sur 'CTRL+C' pour libérer le contrôle")
     
-    input_capture = InputCapture(sock)
-    input_capture.start()
+    _control_active = True
+    _input_capture = InputCapture(sock)
     
-    try:
-        # Bloque jusqu'à interruption
-        while True:
-            pass
-    except KeyboardInterrupt:
-        print("\n[CLIENT] Libération du contrôle...")
-        release_control(sock)
+    # Lance la capture d'entrées en thread séparé
+    capture_thread = threading.Thread(target=_input_capture.start, daemon=True)
+    capture_thread.start()
+    
+    # Retourne immédiatement pour que la boucle vidéo continue
+
+
+def stop_control_mode(sock):
+    """
+    Arrête le mode contrôle
+    """
+    global _control_active, _input_capture
+    
+    _control_active = False
+    if _input_capture:
+        _input_capture.running = False
+    
+    release_control(sock)
 
 
 def release_control(sock):

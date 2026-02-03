@@ -1,6 +1,5 @@
 from config.settings import SERVER_IP, SERVER_PORT
 from client.network import connect_to_server, receive_frame
-from client.decoder import decode_frame
 from client.display import show_frame
 from client.permission import (
     send_permission_request,
@@ -17,13 +16,12 @@ def main():
 
     # 3. Boucle principale de réception vidéo
     while True:
-        frame_data = receive_frame(sock)
-        if frame_data is None:
+        frame = receive_frame(sock)
+        if frame is None:
             print("[CLIENT] Connexion interrompue")
             break
 
-        frame = decode_frame(frame_data)
-        key = show_frame(frame)
+        key = show_frame(frame, sock)
 
         # Quitter proprement
         if key == ord('q'):

@@ -185,10 +185,12 @@ def broadcast():
 
         with lock:
             for c in list(clients.keys()):
-                try:
-                    c.sendall(packet)
-                except:
-                    clients.pop(c, None)
+                # Ne pas envoyer les frames au client qui contrôle
+                if c != controller:
+                    try:
+                        c.sendall(packet)
+                    except:
+                        clients.pop(c, None)
 
 def start_server():
     s = socket.socket()

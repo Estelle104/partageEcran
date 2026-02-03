@@ -1,6 +1,6 @@
 ## A installer
 sudo apt install python3-pip
-1965  pip install mss opencv-python numpy
+pip install mss opencv-python numpy
 
 ## LANCEMENT
 # niveau client:

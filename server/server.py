@@ -83,60 +83,76 @@ def handle_client(sock, addr):
 
     try:
         while True:
-            # Reçoit le type de message (1 byte)
-            msg_type_data = sock.recv(1)
-            if not msg_type_data:
-                break
-            
-            msg_type = struct.unpack(">B", msg_type_data)[0]
-            
-            # Demande de contrôle du client
-            if msg_type == MSG_CONTROL_REQUEST:
-                print(f"[SERVER] Demande de contrôle reçue de {addr}")
-                with lock:
-                    if controller is None:
-                        # Demande à l'utilisateur
-                        decision = input(f"Autoriser {addr} à contrôler ? (y/n) : ")
-                        if decision.lower() == "y":
-                            controller = sock
-                            response = struct.pack(">B", MSG_CONTROL_RESPONSE) + struct.pack(">B", CONTROL_ACCEPTED)
-                            sock.sendall(response)
-                            print(f"[SERVER] {addr} a obtenu le contrôle")
+            try:
+                # Reçoit le type de message (1 byte)
+                msg_type_data = sock.recv(1)
+                if not msg_type_data:
+                    print(f"[SERVER] {addr} a fermé la connexion")
+                    break
+                
+                msg_type = struct.unpack(">B", msg_type_data)[0]
+                
+                # Demande de contrôle du client
+                if msg_type == MSG_CONTROL_REQUEST:
+                    print(f"[SERVER] Demande de contrôle reçue de {addr}")
+                    with lock:
+                        if controller is None:
+                            # Demande à l'utilisateur
+                            decision = input(f"Autoriser {addr} à contrôler ? (y/n) : ")
+                            if decision.lower() == "y":
+                                controller = sock
+                                response = struct.pack(">B", MSG_CONTROL_RESPONSE) + struct.pack(">B", CONTROL_ACCEPTED)
+                                sock.sendall(response)
+                                print(f"[SERVER] {addr} a obtenu le contrôle")
+                            else:
+                                response = struct.pack(">B", MSG_CONTROL_RESPONSE) + struct.pack(">B", CONTROL_REFUSED)
+                                sock.sendall(response)
+                                print(f"[SERVER] {addr} a été refusé")
                         else:
+                            # Un client contrôle déjà
                             response = struct.pack(">B", MSG_CONTROL_RESPONSE) + struct.pack(">B", CONTROL_REFUSED)
                             sock.sendall(response)
-                            print(f"[SERVER] {addr} a été refusé")
-                    else:
-                        # Un client contrôle déjà
-                        response = struct.pack(">B", MSG_CONTROL_RESPONSE) + struct.pack(">B", CONTROL_REFUSED)
-                        sock.sendall(response)
-                        print(f"[SERVER] {addr} refusé (contrôle déjà actif)")
-            
-            # Message d'entrée du contrôleur
-            elif msg_type == MSG_INPUT:
-                if controller == sock:
-                    # Reçoit la taille restante du message
-                    size_data = sock.recv(4)
-                    if not size_data:
-                        break
-                    size = struct.unpack(">I", size_data)[0]
-                    
-                    # Reçoit les données d'entrée
-                    input_data = sock.recv(size)
-                    if not input_data:
-                        break
-                    
-                    input_apply.handle(input_data)
-                else:
-                    # Ignore les entrées si ce client n'a pas le contrôle
-                    pass
-            
-            # Libération du contrôle
-            elif msg_type == MSG_RELEASE_CONTROL:
-                with lock:
+                            print(f"[SERVER] {addr} refusé (contrôle déjà actif)")
+                
+                # Message d'entrée du contrôleur
+                elif msg_type == MSG_INPUT:
                     if controller == sock:
-                        controller = None
-                        print(f"[SERVER] Contrôle libéré par {addr}")
+                        # Reçoit la taille du message (4 bytes)
+                        size_data = sock.recv(4)
+                        if not size_data or len(size_data) < 4:
+                            print(f"[SERVER] Erreur: taille manquante pour MSG_INPUT")
+                            break
+                        
+                        size = struct.unpack(">I", size_data)[0]
+                        
+                        # Reçoit les données d'entrée
+                        input_data = b""
+                        while len(input_data) < size:
+                            chunk = sock.recv(size - len(input_data))
+                            if not chunk:
+                                print(f"[SERVER] Connexion fermée lors de la réception de MSG_INPUT")
+                                break
+                            input_data += chunk
+                        
+                        if len(input_data) == size:
+                            try:
+                                input_apply.handle(input_data)
+                            except Exception as e:
+                                print(f"[SERVER] Erreur application entrée: {e}")
+                
+                # Libération du contrôle
+                elif msg_type == MSG_RELEASE_CONTROL:
+                    with lock:
+                        if controller == sock:
+                            controller = None
+                            print(f"[SERVER] Contrôle libéré par {addr}")
+            
+            except struct.error as e:
+                print(f"[SERVER] Erreur struct pour {addr}: {e}")
+                break
+            except Exception as e:
+                print(f"[SERVER] Erreur réception message de {addr}: {e}")
+                break
 
     finally:
         with lock:
